@@ -1,6 +1,12 @@
-import { useState } from "react";
-import { Pressable, TouchableOpacity, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Platform, Pressable, TouchableOpacity, View } from "react-native";
 import ImageView from "react-native-image-viewing";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import WebView from "react-native-webview";
 import { WebViewSourceUri } from "react-native-webview/lib/WebViewTypes";
 import { Text } from "@/components/ui/Text";
@@ -25,10 +31,19 @@ import BookmarkAssetImage from "./BookmarkAssetImage";
 import BookmarkHtmlHighlighterDom from "./BookmarkHtmlHighlighterDom";
 import { PDFViewer } from "./PDFViewer";
 
+// Standard iOS navigation bar height (points)
+const NAV_BAR_HEIGHT = 44;
+
 export function BookmarkLinkBrowserPreview({
   bookmark,
+  onScrollOffsetChange,
+  contentInsetTop = 0,
+  contentInsetBottom = 0,
 }: {
   bookmark: ZBookmark;
+  onScrollOffsetChange?: (y: number) => void;
+  contentInsetTop?: number;
+  contentInsetBottom?: number;
 }) {
   if (bookmark.content.type !== BookmarkTypes.LINK) {
     throw new Error("Wrong content type rendered");
@@ -39,6 +54,9 @@ export function BookmarkLinkBrowserPreview({
       startInLoadingState={true}
       mediaPlaybackRequiresUserAction={true}
       source={{ uri: bookmark.content.url }}
+      onScroll={(e) => onScrollOffsetChange?.(e.nativeEvent.contentOffset.y)}
+      automaticallyAdjustContentInsets={false}
+      contentInset={{ top: contentInsetTop, bottom: contentInsetBottom }}
     />
   );
 }
@@ -69,12 +87,27 @@ export function BookmarkLinkPdfPreview({ bookmark }: { bookmark: ZBookmark }) {
 
 export function BookmarkLinkReaderPreview({
   bookmark,
+  onScrollOffsetChange,
+  barsVisible = true,
+  contentInsetBottom = 0,
 }: {
   bookmark: ZBookmark;
+  onScrollOffsetChange?: (y: number) => void;
+  barsVisible?: boolean;
+  contentInsetBottom?: number;
 }) {
+  const isIOS26 =
+    Platform.OS === "ios" && parseInt(Platform.Version as string, 10) >= 26;
+
   const { isDarkColorScheme: isDark } = useColorScheme();
   const { settings: readerSettings } = useReaderSettings();
+  const insets = useSafeAreaInsets();
   const api = useTRPC();
+
+  // On iOS 26 the header is transparent, so content extends behind it and we
+  // need to offset by the safe-area top + nav-bar height. On Android / older
+  // iOS the header is opaque — content already starts below it.
+  const headerOffset = isIOS26 ? insets.top + NAV_BAR_HEIGHT : 0;
 
   const {
     data: bookmarkWithContent,
@@ -112,6 +145,22 @@ export function BookmarkLinkReaderPreview({
     bookmarkId: bookmark.id,
   });
 
+  // Small gap between the transparent header and the banner on iOS 26;
+  // on other platforms the opaque header already provides separation.
+  const bannerGap = isIOS26 ? 8 : 0;
+  const bannerTop = useSharedValue(headerOffset + bannerGap);
+  useEffect(() => {
+    bannerTop.value = withTiming(
+      barsVisible ? headerOffset + bannerGap : -bannerGap,
+      {
+        duration: 250,
+      },
+    );
+  }, [barsVisible, bannerTop, headerOffset, bannerGap]);
+  const bannerAnimatedStyle = useAnimatedStyle(() => ({
+    top: bannerTop.value,
+  }));
+
   if (isLoading) {
     return <FullPageSpinner />;
   }
@@ -124,19 +173,30 @@ export function BookmarkLinkReaderPreview({
     throw new Error("Wrong content type rendered");
   }
 
+  const BANNER_HEIGHT = 40;
+
   const contentStyle: React.CSSProperties = {
     fontFamily: WEBVIEW_FONT_FAMILIES[readerSettings.fontFamily],
     fontSize: `${readerSettings.fontSize}px`,
     lineHeight: String(readerSettings.lineHeight),
     color: isDark ? "#e5e7eb" : "#374151",
-    padding: "16px",
+    paddingTop: `${headerOffset + (showBanner ? BANNER_HEIGHT : 0)}px`,
+    paddingBottom: `${contentInsetBottom}px`,
+    paddingLeft: "16px",
+    paddingRight: "16px",
     background: isDark ? "#000000" : "#ffffff",
   };
 
   return (
-    <View className="flex-1 bg-background">
+    <View style={{ flex: 1, backgroundColor: isDark ? "#000000" : "#ffffff" }}>
       {showBanner && (
-        <View className="flex-row items-center gap-2 border-b border-border bg-background px-4 py-2">
+        <Animated.View
+          className="flex-row items-center gap-2 border-b border-border bg-background px-4 py-2"
+          style={[
+            { position: "absolute", left: 0, right: 0, zIndex: 10 },
+            bannerAnimatedStyle,
+          ]}
+        >
           <BookOpen size={16} className="text-muted-foreground" />
           <Text className="flex-1 text-sm text-muted-foreground">
             {bannerPercent && bannerPercent > 0
@@ -154,7 +214,7 @@ export function BookmarkLinkReaderPreview({
           <TouchableOpacity onPress={onDismiss} className="p-1">
             <X size={14} className="text-muted-foreground" />
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       )}
       <BookmarkHtmlHighlighterDom
         htmlContent={bookmarkWithContent.content.htmlContent ?? ""}
@@ -164,7 +224,15 @@ export function BookmarkLinkReaderPreview({
         readingProgressAnchor={readingProgressAnchor}
         restoreReadingPosition={restorePosition}
         onSavePosition={onSavePosition}
-        onScrollPositionChange={onScrollPositionChange}
+        showProgressBar={isIOS26 ? barsVisible : true}
+        progressBarTop={headerOffset + bannerGap}
+        onScrollPositionChange={(position) => {
+          onScrollPositionChange?.(position);
+          // Use percent (0-100) scaled to a synthetic pixel range for scroll
+          // direction detection. position.offset is a text character count and
+          // would cause useScrollDirection to immediately hide the bars.
+          onScrollOffsetChange?.(position.percent * 10);
+        }}
         onHighlight={(h) =>
           createHighlight({
             startOffset: h.startOffset,
@@ -187,7 +255,7 @@ export function BookmarkLinkReaderPreview({
             highlightId: h.id,
           })
         }
-        dom={{ scrollEnabled: true }}
+        dom={{ scrollEnabled: true, contentInsetAdjustmentBehavior: "never" }}
       />
     </View>
   );
@@ -195,8 +263,14 @@ export function BookmarkLinkReaderPreview({
 
 export function BookmarkLinkArchivePreview({
   bookmark,
+  onScrollOffsetChange,
+  contentInsetTop = 0,
+  contentInsetBottom = 0,
 }: {
   bookmark: ZBookmark;
+  onScrollOffsetChange?: (y: number) => void;
+  contentInsetTop?: number;
+  contentInsetBottom?: number;
 }) {
   const asset =
     bookmark.assets.find((r) => r.assetType == "precrawledArchive") ??
@@ -222,6 +296,9 @@ export function BookmarkLinkArchivePreview({
       mediaPlaybackRequiresUserAction={true}
       source={webViewUri}
       decelerationRate={0.998}
+      onScroll={(e) => onScrollOffsetChange?.(e.nativeEvent.contentOffset.y)}
+      automaticallyAdjustContentInsets={false}
+      contentInset={{ top: contentInsetTop, bottom: contentInsetBottom }}
     />
   );
 }
