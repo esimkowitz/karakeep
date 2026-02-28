@@ -16,6 +16,7 @@ import BookmarkTextView from "@/components/bookmarks/BookmarkTextView";
 import BottomActions from "@/components/bookmarks/BottomActions";
 import FullPageError from "@/components/FullPageError";
 import FullPageSpinner from "@/components/ui/FullPageSpinner";
+import { isIOS26 } from "@/lib/ios";
 import useAppSettings from "@/lib/settings";
 import { useScrollDirection } from "@/lib/useScrollDirection";
 import { useNavigation } from "@react-navigation/native";
@@ -164,14 +165,16 @@ export default function BookmarkView() {
           headerTintColor: isDark ? "#fff" : "#000",
           headerRight: () =>
             bookmark.content.type === BookmarkTypes.LINK ? (
-              <View className="flex-row items-center gap-3 px-4">
+              <View
+                className={`flex-row items-center gap-3${isIOS26 ? " px-2" : ""}`}
+              >
                 {bookmarkLinkType === "reader" && (
                   <Pressable
                     onPress={() =>
                       router.push("/dashboard/settings/reader-settings")
                     }
                   >
-                    <Settings size={20} color="gray" />
+                    <Settings size={20} color={isDark ? "#fff" : "#000"} />
                   </Pressable>
                 )}
                 <BookmarkLinkTypeSelector
