@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Platform, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -26,9 +26,6 @@ import { useColorScheme } from "nativewind";
 
 import { useTRPC } from "@karakeep/shared-react/trpc";
 import { BookmarkTypes } from "@karakeep/shared/types/bookmarks";
-
-const isIOS26 =
-  Platform.OS === "ios" && parseInt(Platform.Version as string, 10) >= 26;
 
 // Standard iOS navigation bar height (points)
 const NAV_BAR_HEIGHT = 44;

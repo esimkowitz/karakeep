@@ -7,9 +7,6 @@ import { isIOS26 } from "@/lib/ios";
 import { useIsLoggedIn } from "@/lib/session";
 import { focusManager } from "@tanstack/react-query";
 
-const isIOS26 =
-  Platform.OS === "ios" && parseInt(Platform.Version as string, 10) >= 26;
-
 function onAppStateChange(status: AppStateStatus) {
   if (Platform.OS !== "web") {
     focusManager.setFocused(status === "active");
