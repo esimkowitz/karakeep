@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Platform, Pressable, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Linking, Platform, Pressable, TouchableOpacity, View } from "react-native";
 import ImageView from "react-native-image-viewing";
 import Animated, {
   runOnJS,
@@ -9,9 +9,11 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import WebView from "react-native-webview";
+import { ShouldStartLoadRequest } from "react-native-webview/lib/WebViewTypes";
 import { WebViewSourceUri } from "react-native-webview/lib/WebViewTypes";
 import { BlurView } from "expo-blur";
 import { GlassView, isGlassEffectAPIAvailable } from "expo-glass-effect";
+import * as WebBrowser from "expo-web-browser";
 import { TailwindResolver } from "@/components/TailwindResolver";
 import { Text } from "@/components/ui/Text";
 import { useAssetUrl } from "@/lib/hooks";
@@ -39,6 +41,19 @@ import { PDFViewer } from "./PDFViewer";
 // Standard iOS navigation bar height (points)
 const NAV_BAR_HEIGHT = 44;
 
+function openUrlExternally(url: string) {
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    void WebBrowser.openBrowserAsync(url);
+  } else if (
+    url.startsWith("mailto:") ||
+    url.startsWith("tel:") ||
+    url.startsWith("sms:")
+  ) {
+    void Linking.openURL(url);
+  }
+  // Ignore javascript: and other schemes
+}
+
 export function BookmarkLinkBrowserPreview({
   bookmark,
   onScrollOffsetChange,
@@ -54,6 +69,21 @@ export function BookmarkLinkBrowserPreview({
     throw new Error("Wrong content type rendered");
   }
 
+  const hasLoaded = useRef(false);
+
+  const onShouldStartLoadWithRequest = useCallback(
+    (request: ShouldStartLoadRequest) => {
+      // Allow the initial page load
+      if (!hasLoaded.current) {
+        hasLoaded.current = true;
+        return true;
+      }
+      openUrlExternally(request.url);
+      return false;
+    },
+    [],
+  );
+
   return (
     <WebView
       startInLoadingState={true}
@@ -62,6 +92,8 @@ export function BookmarkLinkBrowserPreview({
       onScroll={(e) => onScrollOffsetChange?.(e.nativeEvent.contentOffset.y)}
       automaticallyAdjustContentInsets={false}
       contentInset={{ top: contentInsetTop, bottom: contentInsetBottom }}
+      setSupportMultipleWindows={false}
+      onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
     />
   );
 }
@@ -265,6 +297,16 @@ export function BookmarkLinkReaderPreview({
     opacity: bannerOpacity.value,
   }));
 
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
+
+  const handleLinkPress = useCallback((url: string) => {
+    openUrlExternally(url);
+  }, []);
+
+  const handleImagePress = useCallback((src: string) => {
+    setViewingImage(src);
+  }, []);
+
   if (isLoading) {
     return <FullPageSpinner />;
   }
@@ -291,6 +333,13 @@ export function BookmarkLinkReaderPreview({
 
   return (
     <View style={{ flex: 1, backgroundColor: isDark ? "#000000" : "#ffffff" }}>
+      <ImageView
+        visible={!!viewingImage}
+        imageIndex={0}
+        onRequestClose={() => setViewingImage(null)}
+        doubleTapToZoomEnabled={true}
+        images={viewingImage ? [{ uri: viewingImage }] : []}
+      />
       <BookmarkHtmlHighlighterDom
         htmlContent={bookmarkWithContent.content.htmlContent ?? ""}
         contentStyle={contentStyle}
@@ -308,6 +357,8 @@ export function BookmarkLinkReaderPreview({
           // would cause useScrollDirection to immediately hide the bars.
           onScrollOffsetChange?.(position.percent * 10);
         }}
+        onLinkPress={handleLinkPress}
+        onImagePress={handleImagePress}
         onHighlight={(h) =>
           createHighlight({
             startOffset: h.startOffset,
@@ -376,6 +427,22 @@ export function BookmarkLinkArchivePreview({
 
   const assetSource = useAssetUrl(asset?.id ?? "");
 
+  const originUri = assetSource.uri;
+  const onShouldStartLoadWithRequest = useCallback(
+    (request: ShouldStartLoadRequest) => {
+      // Allow loading the archive asset itself
+      if (
+        originUri &&
+        (request.url === originUri || request.url.startsWith(originUri))
+      ) {
+        return true;
+      }
+      openUrlExternally(request.url);
+      return false;
+    },
+    [originUri],
+  );
+
   if (!asset) {
     return (
       <View className="flex-1 bg-background">
@@ -388,6 +455,7 @@ export function BookmarkLinkArchivePreview({
     uri: assetSource.uri!,
     headers: assetSource.headers,
   };
+
   return (
     <WebView
       startInLoadingState={true}
@@ -397,6 +465,8 @@ export function BookmarkLinkArchivePreview({
       onScroll={(e) => onScrollOffsetChange?.(e.nativeEvent.contentOffset.y)}
       automaticallyAdjustContentInsets={false}
       contentInset={{ top: contentInsetTop, bottom: contentInsetBottom }}
+      setSupportMultipleWindows={false}
+      onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
     />
   );
 }
