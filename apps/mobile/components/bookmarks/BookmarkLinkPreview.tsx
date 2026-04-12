@@ -71,25 +71,25 @@ export function BookmarkLinkBrowserPreview({
     throw new Error("Wrong content type rendered");
   }
 
-  const content = bookmark.content;
+  const bookmarkUrl = bookmark.content.url;
 
   const onShouldStartLoadWithRequest = useCallback(
     (request: ShouldStartLoadRequest) => {
-      const bookmarkOrigin = new URL(content.url).origin;
+      const bookmarkOrigin = new URL(bookmarkUrl).origin;
       if (request.url.startsWith(bookmarkOrigin)) {
         return true;
       }
       openUrlExternally(request.url);
       return false;
     },
-    [content.url],
+    [bookmarkUrl],
   );
 
   return (
     <WebView
       startInLoadingState={true}
       mediaPlaybackRequiresUserAction={true}
-      source={{ uri: bookmark.content.url }}
+      source={{ uri: bookmarkUrl }}
       onScroll={(e) => onScrollOffsetChange?.(e.nativeEvent.contentOffset.y)}
       automaticallyAdjustContentInsets={false}
       contentInset={{ top: contentInsetTop, bottom: contentInsetBottom }}
