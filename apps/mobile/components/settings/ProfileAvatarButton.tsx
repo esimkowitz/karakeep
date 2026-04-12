@@ -1,4 +1,4 @@
-import { Pressable, View } from "react-native";
+import { Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { Avatar } from "@/components/ui/Avatar";
 import { useQuery } from "@tanstack/react-query";
@@ -6,8 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTRPC } from "@karakeep/shared-react/trpc";
 
 const AVATAR_SIZE = 28;
-const MARGIN = 2;
-const CONTAINER_SIZE = AVATAR_SIZE + MARGIN * 2;
+const HIT_TARGET = 44;
 
 export function ProfileAvatarButton() {
   const router = useRouter();
@@ -20,18 +19,11 @@ export function ProfileAvatarButton() {
         e.stopPropagation();
         router.push("/dashboard/settings");
       }}
+      hitSlop={(HIT_TARGET - AVATAR_SIZE) / 2}
+      accessibilityLabel="Open profile settings"
+      accessibilityRole="button"
     >
-      <View
-        style={{
-          width: CONTAINER_SIZE,
-          height: CONTAINER_SIZE,
-          borderRadius: CONTAINER_SIZE / 2,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Avatar image={data?.image} name={data?.name} size={AVATAR_SIZE} />
-      </View>
+      <Avatar image={data?.image} name={data?.name} size={AVATAR_SIZE} />
     </Pressable>
   );
 }
