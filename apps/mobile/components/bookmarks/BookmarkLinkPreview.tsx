@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Linking, Platform, Pressable, TouchableOpacity, View } from "react-native";
+import { Linking, Platform, Pressable, View } from "react-native";
 import ImageView from "react-native-image-viewing";
 import Animated, {
   runOnJS,
