@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Linking, Platform, Pressable, View } from "react-native";
 import ImageView from "react-native-image-viewing";
 import Animated, {
@@ -9,8 +9,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import WebView from "react-native-webview";
-import { ShouldStartLoadRequest } from "react-native-webview/lib/WebViewTypes";
-import { WebViewSourceUri } from "react-native-webview/lib/WebViewTypes";
+import { ShouldStartLoadRequest, WebViewSourceUri } from "react-native-webview/lib/WebViewTypes";
 import { BlurView } from "expo-blur";
 import { GlassView, isGlassEffectAPIAvailable } from "expo-glass-effect";
 import * as WebBrowser from "expo-web-browser";
@@ -69,19 +68,16 @@ export function BookmarkLinkBrowserPreview({
     throw new Error("Wrong content type rendered");
   }
 
-  const hasLoaded = useRef(false);
-
   const onShouldStartLoadWithRequest = useCallback(
     (request: ShouldStartLoadRequest) => {
-      // Allow the initial page load
-      if (!hasLoaded.current) {
-        hasLoaded.current = true;
+      const bookmarkOrigin = new URL(bookmark.content.url).origin;
+      if (request.url.startsWith(bookmarkOrigin)) {
         return true;
       }
       openUrlExternally(request.url);
       return false;
     },
-    [],
+    [bookmark.content.url],
   );
 
   return (
