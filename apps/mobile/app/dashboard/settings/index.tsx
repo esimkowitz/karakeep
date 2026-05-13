@@ -106,7 +106,6 @@ export default function Settings() {
 
   return (
     <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
     >
       <UserProfileHeader
